@@ -39,7 +39,7 @@ from sentence_transformers import SentenceTransformer
 import json
 from .models import Doc
 
-model = SentenceTransformer('all-MiniLM-L6-v2')  # Lightweight and fast
+model = SentenceTransformer('paraphrase-MiniLM-L6-v2')  # Lightweight and fast
 
 # logger = logging.getLogger('myapp')  # Use the name from your LOGGING config
 
