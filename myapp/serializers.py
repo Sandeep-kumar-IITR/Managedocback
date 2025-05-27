@@ -27,13 +27,6 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(required = True , max_length=255, write_only=True)
 
 
-
-# class DocSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Doc
-#         fields = ('id', 'name','user')
-#         read_only_fields = ('id',)
-
 class DocSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
 

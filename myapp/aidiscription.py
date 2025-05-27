@@ -1,47 +1,26 @@
 import google.generativeai as genai
 from dotenv import load_dotenv
 import os
-from sentence_transformers import SentenceTransformer, util
 from .models import Doc
 import json
 # import logging
+# logger = logging.getLogger('myapp')  # Use the name from your LOGGING config
 
-# Configure logging
-# logging.basicConfig(
-#     level=logging.INFO,  # Use DEBUG, INFO, WARNING, ERROR, or CRITICAL
-#     format='%(asctime)s - %(levelname)s - %(message)s'
-# )
-
-# Load environment variables from .env file
 load_dotenv()
 
-# Access the API key
 api_key = os.getenv("API_KEY")
-# api_key = "AIzaSyAN7bDuqfpCvkOGdpu-I_1S2AcR_rGpRiE"
-
-
-# print("My API key is:", api_key)  # You can remove this line later
-
-# Configure your Gemini API Key
-
-# from .views import Listdoc
+api_key1 = os.getenv("API_KEY1")
 from .models import Doc
 from .models import ChatMessage
-from django.contrib.auth.models import User
 import pdfplumber
+import requests
 
-import ast
+API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+HEADERS = {"Authorization": f"Bearer {api_key1}"}
 
-# import logging
 
 
-from sentence_transformers import SentenceTransformer
-import json
-from .models import Doc
 
-model = SentenceTransformer('paraphrase-MiniLM-L6-v2')  # Lightweight and fast
-
-# logger = logging.getLogger('myapp')  # Use the name from your LOGGING config
 
 
 def generate_ai_description_from_pdf_text(text):
@@ -49,7 +28,7 @@ def generate_ai_description_from_pdf_text(text):
     genai.configure(api_key = api_key)
     client = genai.GenerativeModel("gemini-2.0-flash")
 
-    prompt = f'''From the given PDF text, create a Python list named `question` containing concise keyword-style questions and short 2-line factual answers.
+    prompt = f'''From the given PDF text, create a Python list named `question` containing concise keyword-style sufficient questions for each keyword and short 2-line factual answers.
 
     Format each item as:  
     "keyword-question? brief 2-line answer."
@@ -81,18 +60,13 @@ def generate_ai_description_from_pdf_text(text):
     
 
 
-# Load the SentenceTransformer model
-# model = SentenceTransformer('all-MiniLM-L6-v2')
-
-def get_similar_questions(docss , query, top_k=5):
+def get_similar_questions(docss , query, top_k=8):
     """
     Returns the top_k most similar AI-generated questions across all Docs for a given query.
     """
 
     all_questions = []
-    # question_to_doc = []  # To map back questions to their docs
 
-    # Collect all questions
     for doc in docss:
 
 
@@ -112,22 +86,31 @@ def get_similar_questions(docss , query, top_k=5):
         return []
 
     # Compute embeddings
+    payload = {
+        "inputs": {
+            "source_sentence": query,
+            "sentences": all_questions
+        }
+    }
 
-    question_embeddings = model.encode(all_questions, convert_to_tensor=True)
-    query_embedding = model.encode(query, convert_to_tensor=True)
+    response = requests.post(API_URL, headers=HEADERS, json=payload)
+    response.raise_for_status()
+    similarity_scores = response.json()  # List of similarity scores
 
-    # Compute cosine similarities
-    similarities = util.pytorch_cos_sim(query_embedding, question_embeddings)[0]
+    # Pair sentences with scores
+    scored_sentences = list(zip(all_questions, similarity_scores))
 
-    # Get top_k matches
-    top_results = similarities.topk(k=min(top_k, len(all_questions)))
+    # Sort by similarity score descending
+    top_sentences = sorted(scored_sentences, key=lambda x: x[1], reverse=True)[:top_k]
 
-    # Create the concatenated string of top questions
-    top_questions = [all_questions[idx] for idx in top_results.indices]
-    result_string = " ".join(top_questions)
+    # Extract only sentences
+    top_sentences_only = [sentence for sentence, score in top_sentences]
 
+    # Concatenate into one string
+    result_string = " ".join(top_sentences_only)
 
     return result_string
+
 
 
 
@@ -136,18 +119,17 @@ def get_similar_questions(docss , query, top_k=5):
 def generate_ai_user_response(usser, text):
     user_docs = Doc.objects.filter(user=usser).values_list('AI_questions', flat=True)
     # concatenated_text = ' '.join(filter(None, user_docs))
-
+    # logger.info("hey i am working 1 ")
     concatenated_text = get_similar_questions(user_docs, text, top_k=5)
+    # logger.info(f"Concatenated text for user  {concatenated_text}")
 
-
-
-
-    # Get last 3 messages from the user, ordered by some field (e.g., timestamp or id)
-
-    last_three_msgs = ChatMessage.objects.filter(user=usser).order_by('-id').values_list('user_message', flat=True)[1:3]
+    last_three_msgs = ChatMessage.objects.filter(user=usser).order_by('-id').values_list('user_message', flat=True)[1:2]
     last_three_msgs = list(reversed(last_three_msgs))  # Reverse for correct order
 
-    message_text ="Answer for query " + text + "two previous query be " + ' '.join(filter(None, last_three_msgs)) 
+    last_three_msgs_ai = ChatMessage.objects.filter(user=usser).order_by('-id').values_list('assistant_response', flat=True)[:1]
+    last_three_msgs_ai = list(reversed(last_three_msgs_ai))  # Reverse for correct order
+
+    message_text ="Answer for query " + text + "last query and answer provided by you is " + ' '.join(filter(None, last_three_msgs))+ ' '.join(filter(None, last_three_msgs_ai)) 
 
 
 

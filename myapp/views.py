@@ -16,7 +16,7 @@ from .serializers import DocSerializer
 from .models import Doc
 
 from .permission import IsOwner , IsOwnerdelete , IsOwnerupdate
-from .models import Doc
+
 
 import json
 
@@ -26,12 +26,12 @@ from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
 import os
 import google.generativeai as genai
-from .models import Doc
+
 from .serializers import DocSerializer
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+# from rest_framework import status
 from .models import ChatMessage
 from .serializers import ChatMessageSerializer
 
